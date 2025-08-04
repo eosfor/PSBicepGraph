@@ -43,14 +43,13 @@ public class NewBicepSemanticGraphCmdlet : PSCmdlet
         // model corresponds to one Bicep file.  We print the file
         // URI, then emit a textual representation of the syntax
         // tree using the SyntaxWriter helper from the sample.
-        var g = new PsBidirectionalGraph();
-        foreach (var model in compilation.GetAllModels().OfType<SemanticModel>())
-        {
-            //Console.WriteLine($"\n===== {model.SourceFile.Uri} =====");
-            var syntaxTree = model.SourceFile.ProgramSyntax;
-            //SyntaxWriter.WriteSyntax(syntaxTree, Console.Out);
-            SyntaxWriter.WriteSyntax(syntaxTree, g);
-        }
+        // var g = new PsBidirectionalGraph();
+        // foreach (var model in compilation.GetAllModels().OfType<SemanticModel>())
+        // {
+        //     var syntaxTree = model.SourceFile.ProgramSyntax;
+        //     //SyntaxWriter.WriteSyntax(syntaxTree, Console.Out);
+        //     SyntaxWriter.WriteSyntax(syntaxTree, g);
+        // }
 
         // Build a map of cross‑object dependencies.  The
         // DependencyCollectorVisitor walks each semantic model and
@@ -89,9 +88,9 @@ public class NewBicepSemanticGraphCmdlet : PSCmdlet
         //         : "<none>";
         //     Console.WriteLine($"{declaringSymbol.Name} ({declaringSymbol.Kind}) -> {references}");
         // }
-        var astGraph = new PsBidirectionalGraph();
-        SyntaxWriter.WriteSyntax(dependencyMap, astGraph);
-        WriteObject(astGraph);
+        var graph = new PsBidirectionalGraph();
+        SyntaxWriter.WriteSyntax(dependencyMap, graph);
+        WriteObject(graph);
 
         // -----------------------------------------------------------------
         // The following section demonstrates another approach to building
@@ -105,22 +104,22 @@ public class NewBicepSemanticGraphCmdlet : PSCmdlet
         // serves as an illustrative example of how to use
         // AstVisitor.
         //Console.WriteLine("\n===== Parameter and variable dependencies (AST only) =====");
-        foreach (var model in compilation.GetAllModels().OfType<SemanticModel>())
-        {
-            var parameterVisitor = new ParameterDependencyVisitor();
-            parameterVisitor.Visit(model.SourceFile.ProgramSyntax);
-            //Console.WriteLine($"\n===== {model.SourceFile.Uri} =====");
-            foreach (var decl in parameterVisitor.Dependencies)
-            {
-                var refs = decl.Value.Any()
-                    ? string.Join(", ", decl.Value)
-                    : "<none>";
-                //Console.WriteLine($"{decl.Key} -> {refs}");
-            }
-        }
+        // foreach (var model in compilation.GetAllModels().OfType<SemanticModel>())
+        // {
+        //     var parameterVisitor = new ParameterDependencyVisitor();
+        //     parameterVisitor.Visit(model.SourceFile.ProgramSyntax);
+        //     //Console.WriteLine($"\n===== {model.SourceFile.Uri} =====");
+        //     foreach (var decl in parameterVisitor.Dependencies)
+        //     {
+        //         var refs = decl.Value.Any()
+        //             ? string.Join(", ", decl.Value)
+        //             : "<none>";
+        //         //Console.WriteLine($"{decl.Key} -> {refs}");
+        //     }
+        // }
 
 
-        WriteObject(g);
+        WriteObject(graph);
     }
 
     public Compilation CollectAllBicepFiles(Uri entrypointUri)

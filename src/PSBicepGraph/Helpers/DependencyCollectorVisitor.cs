@@ -29,6 +29,7 @@ using Bicep.Core.SourceGraph;
 using Bicep.Core.Extensions;
 using Bicep.Core.Registry.Catalog.Implementation;
 using Bicep.Core.Navigation;
+using System.Diagnostics;
 
 /// <summary>
 /// Visits a Bicep syntax tree and builds a mapping of declared
@@ -193,21 +194,156 @@ public class DependencyCollectorVisitor : CstVisitor
     private void RecordReference(SyntaxBase syntax)
     {
         if (declarationStack.Count == 0)
-        {
-            // We are not inside a declaration, so nothing to record.
             return;
+
+        DeclaredSymbol? referenced = null;
+
+        // Если узел – доступ по точке, пытаемся разрешить импортированную переменную
+        if (syntax is PropertyAccessSyntax propertyAccess)
+        {
+            // Получаем символ для левой части (alias в случае import * as alias from ...)
+            var baseSymbol = model.GetSymbolInfo(propertyAccess.BaseExpression) as DeclaredSymbol;
+
+            // Если baseSymbol – импорт пространства имён (WildcardImportSymbol), берем его SourceModel
+            if (baseSymbol is WildcardImportSymbol wildcard)
+            {
+                // имя свойства после точки – это экспортированная переменная/функция/тип
+                var propName = propertyAccess.PropertyName.IdentifierName;
+
+                if (wildcard.SourceModel is SemanticModel sourceModel)
+                {
+                    // propName – имя свойства после точки
+                    DeclaredSymbol? exportedDecl = null;
+
+                    // ищем переменную
+                    var variableDecl = sourceModel.Root.VariableDeclarations
+                        .FirstOrDefault(v => string.Equals(v.Name, propName, StringComparison.Ordinal));
+                    if (variableDecl is not null)
+                    {
+                        exportedDecl = variableDecl;
+                    }
+                    else
+                    {
+                        // ищем тип
+                        var typeDecl = sourceModel.Root.TypeDeclarations
+                            .FirstOrDefault(t => string.Equals(t.Name, propName, StringComparison.Ordinal));
+                        if (typeDecl is not null)
+                        {
+                            exportedDecl = typeDecl;
+                        }
+                        else
+                        {
+                            // ищем функцию
+                            var funcDecl = sourceModel.Root.FunctionDeclarations
+                                .FirstOrDefault(f => string.Equals(f.Name, propName, StringComparison.Ordinal));
+                            if (funcDecl is not null)
+                            {
+                                exportedDecl = funcDecl;
+                            }
+                        }
+                    }
+
+                    // если что‑то нашли – записываем зависимость
+                    if (exportedDecl is not null)
+                    {
+                        referenced = exportedDecl;
+                    }
+                }
+            }
+            // иначе пытаемся взять символ из текущей модели по имени свойства (для обычных свойств)
+            if (referenced is null)
+            {
+                referenced = model.GetSymbolInfo(propertyAccess.PropertyName) as DeclaredSymbol;
+            }
         }
 
-        var referenced = model.GetSymbolInfo(syntax) as DeclaredSymbol;
-        if (referenced is null)
-        {
-            return;
-        }
+        // если не удалось обработать PropertyAccessSyntax, используем стандартный механизм
+        referenced ??= model.GetSymbolInfo(syntax) as DeclaredSymbol;
 
-        var currentDeclaration = declarationStack.Peek();
-        if (!EqualityComparer<DeclaredSymbol>.Default.Equals(referenced, currentDeclaration))
+        // игнорируем ссылки на саму декларацию
+        if (referenced is not null)
         {
-            dependencies[currentDeclaration].Add(referenced);
+            var current = declarationStack.Peek();
+            // не добавляем зависимость на alias (ImportedNamespace) – это неинтересно
+            if (referenced.Kind != SymbolKind.ImportedNamespace &&
+                !EqualityComparer<DeclaredSymbol>.Default.Equals(referenced, current))
+            {
+                dependencies[current].Add(referenced);
+            }
         }
     }
+
+    // private void RecordReference(SyntaxBase syntax)
+    // {
+    //     if (declarationStack.Count == 0)
+    //     {
+    //         // We are not inside a declaration, so nothing to record.
+    //         return;
+    //     }
+
+    //     var referenced = model.GetSymbolInfo(syntax) as DeclaredSymbol;
+    //     if (referenced is null)
+    //     {
+    //         return;
+    //     }
+
+    //     var currentDeclaration = declarationStack.Peek();
+    //     if (!EqualityComparer<DeclaredSymbol>.Default.Equals(referenced, currentDeclaration))
+    //     {
+    //         dependencies[currentDeclaration].Add(referenced);
+    //     }
+    // }
+
+    // private void RecordReference(SyntaxBase syntax)
+    // {
+    //     if (declarationStack.Count == 0)
+    //     {
+    //         return;
+    //     }
+
+    //     DeclaredSymbol? referenced = null;
+
+    //     // Если узел – обращение к свойству (a.b), пытаемся достать именно b
+    //     if (syntax is PropertyAccessSyntax propertyAccess)
+    //     {
+    //         if (syntax is PropertyAccessSyntax pa &&
+    //                 pa.PropertyName.IdentifierName == "networkConfig" &&
+    //                 pa.BaseExpression.ToString().Contains("eastus2"))
+    //         {
+    //             Debugger.Break(); // отладчик остановится здесь
+    //         }
+
+    //         var baseName = model.GetSymbolInfo(propertyAccess.BaseExpression);
+    //         // достаём символ для идентификатора после точки (IndexExpression – это имя свойства)
+    //         referenced = model.GetSymbolInfo(propertyAccess.IndexExpression) as DeclaredSymbol;
+    //         // если не найдено, fallback на весь узел
+    //         referenced ??= model.GetSymbolInfo(syntax) as DeclaredSymbol;
+    //     }
+    //     else
+    //     {
+    //         referenced = model.GetSymbolInfo(syntax) as DeclaredSymbol;
+    //     }
+
+    //     if (referenced is null)
+    //     {
+    //         return;
+    //     }
+
+    //     // не добавляем ссылку на alias, если символ – импортированное пространство имён
+    //     if (referenced.Kind is SymbolKind.ImportedNamespace)
+    //     {
+    //         return;
+    //     }
+
+    //     if (referenced is not null)
+    //     {
+    //         var current = declarationStack.Peek();
+    //         if (!EqualityComparer<DeclaredSymbol>.Default.Equals(referenced, current))
+    //         {
+    //             dependencies[current].Add(referenced);
+    //         }
+    //     }
+    // }
+
+
 }

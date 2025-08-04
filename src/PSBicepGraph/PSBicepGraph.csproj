@@ -7,10 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.Bicep.Core" Version="0.36.177" />
-    <PackageReference Include="Azure.Bicep.IO" Version="0.36.177" />
+    <PackageReference Include="Azure.Bicep.Core" Version="0.37.4" />
+    <PackageReference Include="Azure.Bicep.IO" Version="0.37.4" />
     <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.5.2" />
-    <PackageReference Include="PSGraph.Common" Version="2.3.3-beta1" />
+    <PackageReference Include="PSGraph.Common" Version="2.3.2" />
   </ItemGroup>
 
 </Project>
