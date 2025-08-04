@@ -28,6 +28,7 @@ using Environment = Bicep.Core.Utils.Environment;
 using Bicep.Core.SourceGraph;
 using Bicep.Core.Extensions;
 using Bicep.Core.Registry.Catalog.Implementation;
+using Bicep.Core.Navigation;
 
 /// <summary>
 /// Visits a Bicep syntax tree and builds a mapping of declared
@@ -183,6 +184,11 @@ public class DependencyCollectorVisitor : CstVisitor
         base.VisitPropertyAccessSyntax(syntax);
     }
 
+    public override void VisitCompileTimeImportDeclarationSyntax(CompileTimeImportDeclarationSyntax syntax)
+    {
+        RecordReference(syntax);
+        base.VisitCompileTimeImportDeclarationSyntax(syntax);
+    }
 
     private void RecordReference(SyntaxBase syntax)
     {

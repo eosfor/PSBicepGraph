@@ -60,7 +60,8 @@ public class NewBicepSemanticGraphCmdlet : PSCmdlet
         // into a single dictionary keyed by the declaration.
         var dependencyMap = new Dictionary<DeclaredSymbol, HashSet<DeclaredSymbol>>();
 
-        foreach (var model in compilation.GetAllModels().OfType<SemanticModel>())
+        var models = compilation.GetAllModels().OfType<SemanticModel>();
+        foreach (var model in models)
         {
             var perFileDeps = DependencyCollectorVisitor.CollectDependencies(model);
             foreach (var kvp in perFileDeps)
