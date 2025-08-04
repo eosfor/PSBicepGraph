@@ -39,18 +39,6 @@ public class NewBicepSemanticGraphCmdlet : PSCmdlet
         var resolvedpath = ResolveFullPath(Path);
         var compilation = CollectAllBicepFiles(new Uri(resolvedpath));
 
-        // Enumerate all semantic models in the compilation.  Each
-        // model corresponds to one Bicep file.  We print the file
-        // URI, then emit a textual representation of the syntax
-        // tree using the SyntaxWriter helper from the sample.
-        // var g = new PsBidirectionalGraph();
-        // foreach (var model in compilation.GetAllModels().OfType<SemanticModel>())
-        // {
-        //     var syntaxTree = model.SourceFile.ProgramSyntax;
-        //     //SyntaxWriter.WriteSyntax(syntaxTree, Console.Out);
-        //     SyntaxWriter.WriteSyntax(syntaxTree, g);
-        // }
-
         // Build a map of cross‑object dependencies.  The
         // DependencyCollectorVisitor walks each semantic model and
         // records which declared symbols (variables, resources,
@@ -74,51 +62,8 @@ public class NewBicepSemanticGraphCmdlet : PSCmdlet
             }
         }
 
-        // Print the dependency graph.  For each declaration we
-        // output its name, kind and the names of the symbols it
-        // references.  This gives a simple view of the
-        // cross‑object dependencies within the compilation.
-        // Console.WriteLine("\n===== Cross‑object dependencies =====");
-        // foreach (var kvp in dependencyMap)
-        // {
-        //     var declaringSymbol = kvp.Key;
-        //     var dependencies = kvp.Value;
-        //     var references = dependencies.Any()
-        //         ? string.Join(", ", dependencies.Select(d => $"{d.Name} ({d.Kind})"))
-        //         : "<none>";
-        //     Console.WriteLine($"{declaringSymbol.Name} ({declaringSymbol.Kind}) -> {references}");
-        // }
         var graph = new PsBidirectionalGraph();
         SyntaxWriter.WriteSyntax(dependencyMap, graph);
-        WriteObject(graph);
-
-        // -----------------------------------------------------------------
-        // The following section demonstrates another approach to building
-        // a dependency map using only the syntax tree.  The
-        // ParameterDependencyVisitor walks the AST (derived from
-        // AstVisitor) and, for each variable or parameter, records
-        // the names of variables it references in its initializer.
-        // Unlike DependencyCollectorVisitor, this visitor does not use
-        // the semantic model and therefore cannot distinguish
-        // between symbols with the same name in different files.  It
-        // serves as an illustrative example of how to use
-        // AstVisitor.
-        //Console.WriteLine("\n===== Parameter and variable dependencies (AST only) =====");
-        // foreach (var model in compilation.GetAllModels().OfType<SemanticModel>())
-        // {
-        //     var parameterVisitor = new ParameterDependencyVisitor();
-        //     parameterVisitor.Visit(model.SourceFile.ProgramSyntax);
-        //     //Console.WriteLine($"\n===== {model.SourceFile.Uri} =====");
-        //     foreach (var decl in parameterVisitor.Dependencies)
-        //     {
-        //         var refs = decl.Value.Any()
-        //             ? string.Join(", ", decl.Value)
-        //             : "<none>";
-        //         //Console.WriteLine($"{decl.Key} -> {refs}");
-        //     }
-        // }
-
-
         WriteObject(graph);
     }
 
@@ -177,23 +122,13 @@ public class NewBicepSemanticGraphCmdlet : PSCmdlet
     {
         var pi = this.SessionState.Path;
 
-        // 1) PS-путь (учтёт драйвы, ~, Wildcards, etc)
-        // var resolved = pi.GetResolvedPSPathFromPSPath(path);
-        // if (resolved.Count > 0)
-        // {
-        //     return resolved[0].Path;
-        // }
-
-        // 2) Если абсолютный в файловой системе – просто возвращаем
         if (System.IO.Path.IsPathRooted(path))
         {
             return path;
         }
 
-        // 3) Относительный – комбинируем и нормализуем через PS-интринсики
         var baseDir = baseFolder
             ?? pi.CurrentFileSystemLocation.ProviderPath;
-        // Собираем путь (на том же провайдере, что и базовая папка)
         var combined = pi.Combine(baseDir, path);
 
         // TODO: тут остаются пути типа /aaa/bbb/ccc/../../ddd. надо чтобы все они были уже разрешенными корректно
