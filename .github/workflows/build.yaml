@@ -1,0 +1,50 @@
+name: dev-build
+
+on:
+  push:
+    branches: [ "dev" ]
+    paths-ignore:
+      - '**/README.md'
+      - '**/.gitignore'
+      - 'docs/**'
+      - '.devcontainer/**'
+      - '.github/**'
+  pull_request:
+    branches: [ "master" ]
+    paths-ignore:
+      - '**/README.md'
+      - '**/.gitignore'
+      - 'docs/**'
+      - '.devcontainer/**'
+      - '.github/**'
+
+  workflow_dispatch:
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dotnet-version: ['9.0.x' ]
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup .NET Core SDK ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+
+      - name: Install PowerShell
+        uses: PSModule/install-powershell@v1
+        with:
+          Version: latest
+
+      - name: Install dependencies
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --configuration Debug
+      - name: dotnet publish
+        run: dotnet publish -o "./PSQuickGraph"
+      
+

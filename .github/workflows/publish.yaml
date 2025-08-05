@@ -1,0 +1,108 @@
+name: publish
+
+on:
+  release:
+    types: [published]
+
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dotnet-version: ['9.0.x']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET Core SDK ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+
+      - name: Install PowerShell
+        uses: PSModule/install-powershell@v1
+        with:
+          Version: latest
+
+      # --- PowerShell Module Versioning ---
+      - name: Ensure release tag exists
+        id: ensure_tag
+        run: |
+          if [ -z "${GITHUB_REF##refs/tags/}" ]; then
+            echo "Error: Release must have a tag."
+            exit 1
+          fi
+
+      - name: Extract version from tag and update module manifest
+        id: set_version
+        shell: pwsh
+        run: |
+          $tag = "${env:GITHUB_REF}" -replace '^refs/tags/', ''
+          if (-not $tag) {
+            Write-Error "Tag not found. Failing."
+            exit 1
+          }
+          $tag = $tag -replace '^v', ''
+          if ($tag -match '^([0-9]+\.[0-9]+\.[0-9]+)(?:-([A-Za-z0-9\-]+))?$') {
+            $version = $matches[1]
+            $prerelease = $matches[2]
+          } else {
+            Write-Error "Tag format invalid. Should be X.Y.Z or X.Y.Z-suffix"
+            exit 1
+          }
+          if ($prerelease -and ($prerelease -notmatch '^(?:-)?[a-zA-Z0-9\-]+$')) {
+            Write-Error "Prerelease string '$prerelease' contains invalid characters. Only a-z, A-Z, 0-9, and hyphen (-) at the beginning are allowed."
+            exit 1
+          }
+          $psd1 = Get-Item ./PSGraph/PSQuickGraph.psd1
+          if (-not $psd1) {
+            Write-Error "Module manifest (.psd1) not found!"
+            exit 1
+          }
+          $content = Get-Content $psd1.FullName
+          $versionPattern = 'ModuleVersion\s*=\s*''[^'']*'''
+          $content = $content -replace $versionPattern, "ModuleVersion = '$version'"
+          if ($prerelease) {
+            $content = $content -replace '^\s*#\s*Prerelease\s*=\s*''[^'']*''', "Prerelease = '$prerelease'"
+          }
+          Set-Content -Path $psd1.FullName -Value $content
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "prerelease=$prerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      # --- PowerShell Module Build/Test/Publish ---
+      - name: Install dependencies
+        run: dotnet restore
+
+      - name: Build PowerShell module
+        run: |
+          if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+            dotnet build -c Debug
+          else
+            dotnet build -c Release
+          fi
+
+    #   - name: Run .NET tests
+    #     run: dotnet test --verbosity normal
+
+    #   - name: Run Pester tests
+    #     shell: pwsh
+    #     run: |
+    #       Invoke-Pester -Path ./PsGraph.Pester.Tests/
+
+    #   - name: dotnet publish PowerShell module
+    #     run: |
+    #       if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+    #         dotnet publish -c Debug -o "./PSQuickGraph"
+    #       else
+    #         dotnet publish -c Release -o "./PSQuickGraph"
+    #       fi
+
+    #   - name: Publish PowerShell module to PSGallery
+    #     shell: pwsh
+    #     run: |
+    #       Publish-Module -Path "./PSQuickGraph" -NuGetApiKey ${{ secrets.PS_GALLERY_SECRET }}
