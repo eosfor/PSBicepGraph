@@ -42,7 +42,7 @@ jobs:
 
       - name: Install dependencies
         run: dotnet restore
-        
+
       - name: Build
         run: dotnet build --configuration Debug
       - name: dotnet publish
@@ -51,5 +51,5 @@ jobs:
       - name: Run Pester tests
         shell: pwsh
         run: |
-          Invoke-Pester -Path ./PSBicepGraph.Pester.Tests/
+          Invoke-Pester -Path src/PSBicepGraph.Pester.Tests/
 
