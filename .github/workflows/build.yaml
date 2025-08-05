@@ -49,7 +49,7 @@ jobs:
             dotnet publish --configuration Debug
 
       - name: dotnet publish
-        run: dotnet publish -o "./PSQuickGraph"
+        run: dotnet publish -o "./PSBicepGraph"
       
       - name: Run Pester tests
         shell: pwsh
