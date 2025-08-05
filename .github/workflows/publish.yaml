@@ -82,8 +82,10 @@ jobs:
         run: |
           if [ "${{ github.event.release.prerelease }}" = "true" ]; then
             dotnet build -c Debug
+            dotnet publish -c Debug
           else
             dotnet build -c Release
+            dotnet publish -c Release
           fi
 
     #   - name: Run .NET tests
