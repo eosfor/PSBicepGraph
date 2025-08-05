@@ -44,7 +44,10 @@ jobs:
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --configuration Debug
+        run: |
+            dotnet build --configuration Debug
+            dotnet publish --configuration Debug
+
       - name: dotnet publish
         run: dotnet publish -o "./PSQuickGraph"
       
