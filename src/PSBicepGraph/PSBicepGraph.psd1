@@ -30,7 +30,7 @@ CompanyName = 'none'
 Copyright = '(c) Andrey Vernigora. All rights reserved.'
 
 # Description of the functionality provided by this module
-# Description = ''
+Description = 'Generates semantic dependency graphs from Bicep templates and outputs them as PSGraph-compatible objects for visualization and analysis.'
 
 # Minimum version of the PowerShell engine required by this module
 # PowerShellVersion = ''
