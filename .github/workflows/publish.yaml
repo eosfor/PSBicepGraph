@@ -92,7 +92,7 @@ jobs:
       - name: Run Pester tests
         shell: pwsh
         run: |
-          Invoke-Pester -Path ./PSBicepGraph.Pester.Tests/
+          Invoke-Pester -Path src/PSBicepGraph.Pester.Tests/
 
       - name: dotnet publish PowerShell module
         run: |
