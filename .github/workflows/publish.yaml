@@ -59,7 +59,7 @@ jobs:
             Write-Error "Prerelease string '$prerelease' contains invalid characters. Only a-z, A-Z, 0-9, and hyphen (-) at the beginning are allowed."
             exit 1
           }
-          $psd1 = Get-Item PSBicepGraph.psd1
+          $psd1 = Get-Item src/PSBicepGraph/PSBicepGraph.psd1
           if (-not $psd1) {
             Write-Error "Module manifest (.psd1) not found!"
             exit 1
