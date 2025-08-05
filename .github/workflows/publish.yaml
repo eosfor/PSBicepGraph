@@ -85,7 +85,7 @@ jobs:
             dotnet publish -c Debug
           else
             dotnet build -c Release
-            dotnet publish -c Release
+            dotnet publish -c Debug
           fi
 
     #   - name: Run .NET tests
