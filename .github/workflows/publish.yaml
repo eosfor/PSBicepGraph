@@ -89,20 +89,20 @@ jobs:
     #   - name: Run .NET tests
     #     run: dotnet test --verbosity normal
 
-    #   - name: Run Pester tests
-    #     shell: pwsh
-    #     run: |
-    #       Invoke-Pester -Path ./PsGraph.Pester.Tests/
+      - name: Run Pester tests
+        shell: pwsh
+        run: |
+          Invoke-Pester -Path ./PSBicepGraph.Pester.Tests/
 
-    #   - name: dotnet publish PowerShell module
-    #     run: |
-    #       if [ "${{ github.event.release.prerelease }}" = "true" ]; then
-    #         dotnet publish -c Debug -o "./PSQuickGraph"
-    #       else
-    #         dotnet publish -c Release -o "./PSQuickGraph"
-    #       fi
+      - name: dotnet publish PowerShell module
+        run: |
+          if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+            dotnet publish -c Debug -o "./PSBicepGraph"
+          else
+            dotnet publish -c Release -o "./PSBicepGraph"
+          fi
 
-    #   - name: Publish PowerShell module to PSGallery
-    #     shell: pwsh
-    #     run: |
-    #       Publish-Module -Path "./PSQuickGraph" -NuGetApiKey ${{ secrets.PS_GALLERY_SECRET }}
+      - name: Publish PowerShell module to PSGallery
+        shell: pwsh
+        run: |
+          Publish-Module -Path "./PSBicepGraph" -NuGetApiKey ${{ secrets.PS_GALLERY_SECRET }}
