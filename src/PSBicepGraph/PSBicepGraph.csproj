@@ -13,4 +13,10 @@
     <PackageReference Include="PSGraph.Common" Version="2.3.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="PSBicepGraph.psd1">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
