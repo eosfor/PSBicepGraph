@@ -1,17 +1,21 @@
 ﻿namespace PSBicepGraph.Commands;
 
+using System.Linq;
 using System.Management.Automation;
 using Bicep.Core;
+using Bicep.Core.Diagnostics;
 using Bicep.Core.Extensions;
 using Bicep.Core.Navigation;
 using Bicep.Core.Parsing;
 using Bicep.Core.Semantics;
+using Bicep.Core.Semantics.Metadata;
 using Bicep.Core.SourceGraph;
 using Bicep.Core.Syntax;
 using Bicep.IO.Abstraction;
 using Bicep.IO.InMemory;
 using Json.Schema;
 using Microsoft.Extensions.DependencyInjection;
+using Newtonsoft.Json.Linq;
 using PSGraph.Model;
 
 [Cmdlet(VerbsCommon.New, "BicepSemanticGraph")]
@@ -46,25 +50,89 @@ public class NewBicepSemanticGraphCmdlet : PSCmdlet
         // other declared symbols.  We merge the per‑file results
         // into a single dictionary keyed by the declaration.
         var dependencyMap = new Dictionary<DeclaredSymbol, HashSet<DeclaredSymbol>>();
+        var virtualNodes = new Dictionary<SemanticModel, (HashSet<DeclaredSymbol>, HashSet<DeclaredSymbol>)>();
+        var armNodes = new Dictionary<DeclaredSymbol, HashSet<JToken>>();
 
         var models = compilation.GetAllModels().OfType<SemanticModel>();
         foreach (var model in models)
         {
             var perFileDeps = DependencyCollectorVisitor.CollectDependencies(model);
+            var sourcesAndSyncs = GetSourcesAndSinks(perFileDeps);
+            virtualNodes[model] = sourcesAndSyncs;
+
             foreach (var kvp in perFileDeps)
             {
                 if (!dependencyMap.TryGetValue(kvp.Key, out var set))
                 {
                     set = new HashSet<DeclaredSymbol>();
                     dependencyMap[kvp.Key] = set;
+
+                    // for each module get it's source file path and then match it to a corresponding model
+                    // extract resources from the model and add them as deps for the module symbol
+
+                    if (kvp.Key.Kind == SymbolKind.Module)
+                    {
+                        var mdSyntax = kvp.Key.DeclaringSyntax as ModuleDeclarationSyntax;
+                        ResultWithDiagnosticBuilder<ISourceFile> srcFileObj = kvp.Key.Context.SourceFileLookup.TryGetSourceFile(mdSyntax);
+                        var srcFile = srcFileObj.Unwrap();
+                        if (srcFile is BicepFile)
+                        {
+                            var targetModel = compilation.GetSemanticModel(srcFile) as SemanticModel;
+                            var resources = targetModel
+                                .Root.ResourceDeclarations
+                                .Select(r => r)
+                                .ToHashSet();
+                            set.UnionWith(resources);
+                        }
+                        else if (srcFile is ArmTemplateFile armTemplate)
+                        {
+                            var armSemanticModel = compilation.GetSemanticModel(srcFile) as ArmTemplateSemanticModel;
+                            if (armSemanticModel != null)
+                            {
+                                var res = armSemanticModel.SourceFile.TemplateObject["resources"].ToHashSet();
+                                if (res.Count > 0)
+                                {
+                                    armNodes[kvp.Key] = res;
+                                }
+                            }
+                        }
+
+                    }
                 }
                 set.UnionWith(kvp.Value);
             }
         }
 
         var graph = new PsBidirectionalGraph();
-        SyntaxWriter.WriteSyntax(dependencyMap, graph);
+        SyntaxWriter.WriteSyntax(dependencyMap, graph, virtualNodes, armNodes);
         WriteObject(graph);
+    }
+
+    private (HashSet<DeclaredSymbol> sources, HashSet<DeclaredSymbol> sinks) GetSourcesAndSinks(Dictionary<DeclaredSymbol, HashSet<DeclaredSymbol>> deps)
+    {
+        // Все вершины, в которые кто-то ссылается (есть входящее)
+        var targets = deps.Values
+                          .SelectMany(v => v ?? Enumerable.Empty<DeclaredSymbol>())
+                          .ToHashSet();
+
+        // Все вершины, у которых есть хотя бы одно исходящее
+        var withOut = deps.Where(kvp => kvp.Value != null && kvp.Value.Count > 0)
+                          .Select(kvp => kvp.Key)
+                          .ToHashSet();
+
+        // Полная вселенная вершин = ключи ∪ targets
+        var all = new HashSet<DeclaredSymbol>(deps.Keys);
+        all.UnionWith(targets);
+
+        // Источники: in-degree == 0
+        var sources = new HashSet<DeclaredSymbol>(all);
+        sources.ExceptWith(targets);
+
+        // Стоки: out-degree == 0 (включая ключи с пустыми множествами и чистые "targets")
+        var sinks = new HashSet<DeclaredSymbol>(all);
+        sinks.ExceptWith(withOut);
+
+        return (sources, sinks);
     }
 
     public Compilation CollectAllBicepFiles(Uri entrypointUri)
@@ -110,12 +178,12 @@ public class NewBicepSemanticGraphCmdlet : PSCmdlet
                 var resolved = ResolveFullPath(trimmed, uri.GetParentUri().AbsolutePath);
 
                 // TODO: hack, solve for this somehow. we only need loval paths
-                if (!resolved.Contains("br/public:avm"))
+                if (!trimmed.StartsWith("br/public:avm"))
                     queue.Enqueue(new Uri(resolved));
             }
 
         }
-        return compiler.CreateCompilation(entrypointUri).GetAwaiter().GetResult(); ;
+        return compiler.CreateCompilation(entrypointUri).GetAwaiter().GetResult();
     }
 
     private string ResolveFullPath(string path, string? baseFolder = null)

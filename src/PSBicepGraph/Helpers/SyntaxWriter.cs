@@ -30,6 +30,7 @@ using Bicep.Core.Extensions;
 using Bicep.Core.Registry.Catalog.Implementation;
 using PSGraph.Model;
 using Microsoft.WindowsAzure.ResourceStack.Common.Extensions;
+using Newtonsoft.Json.Linq;
 
 /// <summary>
 /// Prints a Bicep syntax tree to a TextWriter.  The output uses
@@ -146,4 +147,86 @@ public static class SyntaxWriter
             .Replace("\r", "\\r")
             .Replace("\n", "\\n")
             .Replace("\t", "\\t");
+
+    internal static void WriteSyntax(Dictionary<DeclaredSymbol, HashSet<DeclaredSymbol>> dependencyMap, PsBidirectionalGraph graph, Dictionary<SemanticModel, (HashSet<DeclaredSymbol>, HashSet<DeclaredSymbol>)> virtualNodes)
+    {
+
+        WriteSyntax(dependencyMap, graph);
+
+        // Для каждой модели добавляем виртуальные рёбра
+        foreach (var kvp in virtualNodes)
+        {
+            var model = kvp.Key;
+            var (sources, sinks) = kvp.Value;
+            // Вершина модели с SourceFile uri
+            var modelVertex = new PSVertex(model.SourceFile.Uri.ToString());
+            graph.AddVertex(modelVertex);
+
+            // Из всех sinks в модель
+            foreach (var sink in sinks)
+            {
+                var sinkVertex = new PSVertex($"{sink.Name} ({sink.Kind})");
+                graph.AddVertex(sinkVertex);
+                graph.AddEdge(new PSEdge(sinkVertex, modelVertex, new PSEdgeTag("virtual_sink")));
+            }
+
+            // Из модели во все sources
+            foreach (var source in sources)
+            {
+                var sourceVertex = new PSVertex($"{source.Name} ({source.Kind})");
+                graph.AddVertex(sourceVertex);
+                graph.AddEdge(new PSEdge(modelVertex, sourceVertex, new PSEdgeTag("virtual_source")));
+            }
+        }
+    }
+
+// ...existing code...
+    internal static void WriteSyntax(
+        Dictionary<DeclaredSymbol, HashSet<DeclaredSymbol>> dependencyMap,
+        PsBidirectionalGraph graph,
+        Dictionary<SemanticModel, (HashSet<DeclaredSymbol>, HashSet<DeclaredSymbol>)> virtualNodes,
+        Dictionary<DeclaredSymbol, HashSet<JToken>> armNodes)
+    {
+        foreach (var kvp in armNodes)
+        {
+            var source = new PSVertex($"{kvp.Key.Name} ({kvp.Key.Kind})");
+            graph.AddVertex(source);
+
+            foreach (var token in kvp.Value)
+            {
+                var (logicalName, typeName) = ExtractArmResourceInfo(token);
+                var target = new PSVertex($"{logicalName} (ARM {typeName})");
+                graph.AddVertex(target);
+                graph.AddEdge(new PSEdge(source, target, new PSEdgeTag("virtual_source")));
+            }
+        }
+
+        WriteSyntax(dependencyMap, graph, virtualNodes);
+    }
+
+    private static (string logicalName, string typeName) ExtractArmResourceInfo(JToken token)
+    {
+        string logicalName = "unresolved";
+        string typeName = "unknown";
+        JObject? resourceObj = null;
+
+        switch (token)
+        {
+            case JProperty prop:
+                logicalName = prop.Name;
+                resourceObj = prop.Value as JObject;
+                break;
+            case JObject jo:
+                resourceObj = jo;
+                logicalName = jo["name"]?.ToString() ?? logicalName;
+                break;
+        }
+
+        if (resourceObj != null)
+        {
+            typeName = resourceObj["type"]?.ToString() ?? typeName;
+        }
+
+        return (logicalName, typeName);
+    }
 }
