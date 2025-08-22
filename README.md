@@ -1,5 +1,7 @@
 # PSBicepGraph
 
+![PowerShell Gallery](https://img.shields.io/powershellgallery/v/PSBicepGraph?label=PSGallery) ![CI](https://github.com/eosfor/PSBicepGraph/actions/workflows/build.yaml/badge.svg) ![Licence](https://img.shields.io/github/license/eosfor/PSBicepGraph)
+
 *PowerShell module for analysing and visualising dependencies inside Bicep templates using [PSGraph](https://github.com/eosfor/PSGraph).*
 
 Bicep is a declarative language for Azure infrastructure. As your templates grow in size and you start composing them from multiple files, understanding how variables, parameters, resources and modules relate to each other becomes difficult. PSBicepGraph builds a semantic dependency graph from your Bicep source files and returns a PsBidirectionalGraph object. You can then export or analyse this graph using the rich tools provided by the PSGraph module – including GraphViz export, design‑structure matrix generation and clustering.
