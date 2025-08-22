@@ -91,11 +91,6 @@ jobs:
     #   - name: Run .NET tests
     #     run: dotnet test --verbosity normal
 
-      - name: Run Pester tests
-        shell: pwsh
-        run: |
-          Invoke-Pester -Path src/PSBicepGraph.Pester.Tests/
-
       - name: dotnet publish PowerShell module
         run: |
           if [ "${{ github.event.release.prerelease }}" = "true" ]; then
@@ -103,6 +98,11 @@ jobs:
           else
             dotnet publish -c Release -o "./PSBicepGraph"
           fi
+
+      - name: Run Pester tests
+        shell: pwsh
+        run: |
+          Invoke-Pester -Path src/PSBicepGraph.Pester.Tests/
 
       - name: Publish PowerShell module to PSGallery
         shell: pwsh
