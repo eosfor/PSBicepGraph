@@ -1,5 +1,5 @@
 BeforeAll {
-    Install-Module PSQuickGraph
+    Install-Module PSQuickGraph -Force -AllowPrerelease
     Import-Module PSQuickGraph -Verbose
     Import-Module "./PSBicepGraph" -Verbose
 }
