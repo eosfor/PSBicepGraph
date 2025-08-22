@@ -1,6 +1,7 @@
 BeforeAll {
-    Import-Module "/Users/andrei/repo/PSGraph/PSGraph/bin/Debug/net9.0/publish/PSGraph.dll" -Verbose
-    Import-Module "/Users/andrei/repo/PSBicepGraph/src/PSBicepGraph/bin/Debug/net9.0/publish/PSBicepGraph.dll" -Verbose
+    Install-Module PSQuickGraph
+    Import-Module PSQuickGraph -Verbose
+    Import-Module "./PSBicepGraph" -Verbose
 }
 
 Describe 'Start-DSMClustering AlgorithmConfig coercion' {
