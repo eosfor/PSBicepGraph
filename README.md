@@ -76,10 +76,43 @@ $ret = Start-DSMClustering -Dsm $dsm
 Export-DSM -Result $ret -Format VEGA_HTML -Path $Env:TMPDIR/dsmPartitioned.html
 ```
 
+```pwsh
+$sgFull = New-BicepSemanticGraph -Path "./main.bicep"
+
+$tempDir = [System.IO.Path]::GetTempPath() 
+$outFile = Join-Path $tempDir 'x.tree.html'
+Export-Graph -Graph $sgFull -Format Vega_TreeLayout -Path $outFile -UseVirtualTreeRoot # the graph has "multiple roots", we need to ad a virtual one to make it a Tree
+open $outFile
+```
+
+![treeView](doc/img/visualization-3.png)
+
+## What is a DSM and why use it?
+
+> NOTE: DSM algorithms are not 100% implemented yet.
+
+A Design Structure Matrix (DSM) is a square matrix that captures dependencies within a system. The same set of entities labels the rows and the columns; a mark at cell (i, j) means “row i depends on column j”.
+
+- Orientation used by PSBicepGraph and PSGraph DSM:
+  - Row = consumer, Column = provider
+  - An edge A → B in the graph becomes a filled cell at (A, B)
+
+Benefits:
+- Scales to large systems: dense graphs become readable, compact matrices.
+- Reveals architecture: clustering groups highly interdependent elements into modules.
+- Detects cycles and feedback quickly: marks above the diagonal indicate backward dependencies.
+- Helps layer and sequence work: reordering rows/columns minimizes feedback and highlights a feasible build/deploy order.
+- Quantifiable health metrics: upper‑triangular density, size/number of cycles, propagation cost.
+
+Practical workflow:
+- Build a graph: `$g = New-BicepSemanticGraph -Path ./main.bicep`
+- Build a DSM: `$dsm = New-DSM -graph $g`
+- Cluster: `$ret = Start-DSMClustering -Dsm $dsm -ClusteringAlgorithm Classic` (or Graph)
+- Export: `Export-DSM -Result $ret -Format VEGA_HTML -Path $Env:TMPDIR/dsm.html`
+
+
 **DSM visualisation**
 
 The uploaded diagram below was generated from a real-world multi‑file Bicep project. Each cell in the matrix shows dependencies between declarations; the colours highlight clusters of strongly related components discovered by DSM clustering. Use Export‑DSM to produce similar diagrams from your own templates.
 
-![dsmVisual](doc/img/visualization.svg)
-
-The **interactive** version of this can be found [here](https://vega.github.io/editor/#/gist/0479b3f91c6fabf390b43584bc6d43e5/spec.json). Click on a row to see everything that component depends on; click on a column to reveal all the things downstream that will be affected by a change. Rows and columns highlight automatically, making dependencies obvious and helping you spot tight coupling at a glance.
+![dsmVisual](doc/img/visualization-8.svg)

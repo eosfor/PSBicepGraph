@@ -17,12 +17,17 @@ using Json.Schema;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json.Linq;
 using PSGraph.Model;
+using QuikGraph;
+using SharpYaml.Tokens;
 
 [Cmdlet(VerbsCommon.New, "BicepSemanticGraph")]
 public class NewBicepSemanticGraphCmdlet : PSCmdlet
 {
     [Parameter(Mandatory = true, Position = 0)]
     public string Path { get; set; } = string.Empty;
+
+    [Parameter(Mandatory = false, Position = 1)]
+    public SymbolKind CollapseOn;
 
     private ServiceProvider? services;
 
@@ -49,16 +54,44 @@ public class NewBicepSemanticGraphCmdlet : PSCmdlet
         // parameters, outputs, modules, etc.) reference which
         // other declared symbols.  We merge the per‑file results
         // into a single dictionary keyed by the declaration.
-        var dependencyMap = new Dictionary<DeclaredSymbol, HashSet<DeclaredSymbol>>();
-        var virtualNodes = new Dictionary<SemanticModel, (HashSet<DeclaredSymbol>, HashSet<DeclaredSymbol>)>();
-        var armNodes = new Dictionary<DeclaredSymbol, HashSet<JToken>>();
+        Dictionary<DeclaredSymbol, HashSet<DeclaredSymbol>> dependencyMap;
+        Dictionary<SemanticModel, (HashSet<DeclaredSymbol>, HashSet<DeclaredSymbol>)> virtualNodes;
+        Dictionary<DeclaredSymbol, HashSet<JToken>> armNodes;
+
+        CreateDependencyMap(compilation, out dependencyMap, out virtualNodes, out armNodes);
+        var fullGraph = GraphBuilderHelper.Build(dependencyMap, virtualNodes, armNodes);
+
+        
+        if (MyInvocation.BoundParameters.ContainsKey("CollapseOn"))
+        {
+            var alg = new SemanticGraphCondencationAlgorithm();
+            PsBidirectionalGraph condencedGraph;
+            condencedGraph = alg.Condence(fullGraph, CollapseOn);
+            WriteObject(condencedGraph);
+        }
+        else
+        {
+            WriteObject(fullGraph);
+        }
+    }
+
+    private void CreateDependencyMap(Compilation compilation, out Dictionary<DeclaredSymbol, HashSet<DeclaredSymbol>> dependencyMap, out Dictionary<SemanticModel, (HashSet<DeclaredSymbol>, HashSet<DeclaredSymbol>)> virtualNodes, out Dictionary<DeclaredSymbol, HashSet<JToken>> armNodes)
+    {
+        dependencyMap = new Dictionary<DeclaredSymbol, HashSet<DeclaredSymbol>>();
+        virtualNodes = new Dictionary<SemanticModel, (HashSet<DeclaredSymbol>, HashSet<DeclaredSymbol>)>();
+        armNodes = new Dictionary<DeclaredSymbol, HashSet<JToken>>();
 
         var models = compilation.GetAllModels().OfType<SemanticModel>();
         foreach (var model in models)
         {
             var perFileDeps = DependencyCollectorVisitor.CollectDependencies(model);
             var sourcesAndSyncs = GetSourcesAndSinks(perFileDeps);
-            virtualNodes[model] = sourcesAndSyncs;
+            var k = perFileDeps.SelectMany(v => v.Value).ToHashSet();
+            var v = perFileDeps.Select(v => v.Key).ToHashSet().Union(k).ToHashSet();
+            virtualNodes[model] = (v, new HashSet<DeclaredSymbol>());
+
+            // (perFileDeps.SelectMany(v => v.Value).Where(e => e.Kind == SymbolKind.Parameter).ToHashSet(),
+            // perFileDeps.SelectMany(v => v.Value).Where(e => e.Kind == SymbolKind.Output).ToHashSet()); //sourcesAndSyncs;
 
             foreach (var kvp in perFileDeps)
             {
@@ -102,10 +135,6 @@ public class NewBicepSemanticGraphCmdlet : PSCmdlet
                 set.UnionWith(kvp.Value);
             }
         }
-
-        var graph = new PsBidirectionalGraph();
-        SyntaxWriter.WriteSyntax(dependencyMap, graph, virtualNodes, armNodes);
-        WriteObject(graph);
     }
 
     private (HashSet<DeclaredSymbol> sources, HashSet<DeclaredSymbol> sinks) GetSourcesAndSinks(Dictionary<DeclaredSymbol, HashSet<DeclaredSymbol>> deps)
